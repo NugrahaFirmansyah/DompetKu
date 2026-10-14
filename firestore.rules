@@ -1,0 +1,93 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.type in ['EXPENSE', 'INCOME'] &&
+             (data.amount is int || data.amount is float) && data.amount > 0 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 64 &&
+             data.wallet is string && data.wallet.size() > 0 && data.wallet.size() <= 64 &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 500)) &&
+             (data.dateMillis is int || data.dateMillis is float) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidBudget(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.category is string && data.category.size() > 0 && data.category.size() <= 64 &&
+             (data.monthlyLimit is int || data.monthlyLimit is float) && data.monthlyLimit > 0 &&
+             data.monthYear is string && data.monthYear.size() == 7 && data.monthYear.matches('^[0-9]{4}-[0-9]{2}$') &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && request.auth.uid == userId;
+
+      match /transactions/{transactionId} {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(transactionId);
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() && request.auth.uid == userId &&
+                         isValidId(transactionId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'type', 'amount', 'category', 'wallet', 'dateMillis', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'type', 'amount', 'category', 'wallet', 'note', 'dateMillis', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming());
+
+        allow update: if isSignedIn() && request.auth.uid == userId &&
+                         isValidId(transactionId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['type', 'amount', 'category', 'wallet', 'note', 'dateMillis', 'updatedAt']) &&
+                         isValidTransaction(incoming());
+
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(transactionId);
+      }
+
+      match /budgets/{budgetId} {
+        allow get: if isSignedIn() && request.auth.uid == userId && isValidId(budgetId);
+        allow list: if isSignedIn() && request.auth.uid == userId;
+
+        allow create: if isSignedIn() && request.auth.uid == userId &&
+                         isValidId(budgetId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'category', 'monthlyLimit', 'monthYear', 'createdAt', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'category', 'monthlyLimit', 'monthYear', 'createdAt', 'updatedAt']) &&
+                         isValidBudget(incoming());
+
+        allow update: if isSignedIn() && request.auth.uid == userId &&
+                         isValidId(budgetId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['category', 'monthlyLimit', 'monthYear', 'updatedAt']) &&
+                         isValidBudget(incoming());
+
+        allow delete: if isSignedIn() && request.auth.uid == userId && isValidId(budgetId);
+      }
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "DompetKu",
+  "description": "Aplikasi pencatat keuangan pribadi dengan sinkronisasi cloud Firebase real-time, analisis pengeluaran & pemasukan, dan target anggaran.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

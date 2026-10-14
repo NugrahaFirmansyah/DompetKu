@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A single financial transaction record (income or expense) logged by the user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this transaction."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["EXPENSE", "INCOME"],
+          "description": "Whether this transaction is an expense or income."
+        },
+        "amount": {
+          "type": "number",
+          "description": "Transaction amount in IDR (must be positive)."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category name of the transaction (e.g., Makanan, Transportasi, Gaji)."
+        },
+        "wallet": {
+          "type": "string",
+          "description": "Wallet or payment method (e.g., Tunai, Rekening Bank, E-Wallet)."
+        },
+        "note": {
+          "type": "string",
+          "description": "Optional user note or description for the transaction."
+        },
+        "dateMillis": {
+          "type": "number",
+          "description": "Transaction occurrence date in milliseconds since epoch."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when transaction was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when transaction was last modified."
+        }
+      },
+      "required": ["userId", "type", "amount", "category", "wallet", "dateMillis", "createdAt", "updatedAt"]
+    },
+    "Budget": {
+      "title": "Budget",
+      "description": "Monthly budget target for a specific category.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The UID of the user who owns this budget target."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category name for the budget."
+        },
+        "monthlyLimit": {
+          "type": "number",
+          "description": "Maximum spending budget for the month."
+        },
+        "monthYear": {
+          "type": "string",
+          "description": "Year and month string in format YYYY-MM."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when budget was created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when budget was last modified."
+        }
+      },
+      "required": ["userId", "category", "monthlyLimit", "monthYear", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": {
+        "$ref": "#/entities/Transaction"
+      },
+      "description": "Collection of transactions belonging to a specific user."
+    },
+    "/users/{userId}/budgets/{budgetId}": {
+      "schema": {
+        "$ref": "#/entities/Budget"
+      },
+      "description": "Collection of category budgets set by a specific user."
+    }
+  }
+}
