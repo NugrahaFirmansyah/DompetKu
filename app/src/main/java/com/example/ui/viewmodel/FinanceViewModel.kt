@@ -29,7 +29,11 @@ data class FinancialSummary(
     val totalIncome: Double = 0.0,
     val totalExpense: Double = 0.0,
     val totalBalance: Double = 0.0,
+    val thisMonthIncome: Double = 0.0,
+    val thisMonthExpense: Double = 0.0,
+    val todayExpense: Double = 0.0,
     val categoryExpenses: Map<String, Double> = emptyMap(),
+    val thisMonthCategoryExpenses: Map<String, Double> = emptyMap(),
     val categoryPercentages: Map<String, Float> = emptyMap()
 )
 
@@ -56,6 +60,9 @@ class FinanceViewModel(
 
     private val _walletFilter = MutableStateFlow("SEMUA")
     val walletFilter: StateFlow<String> = _walletFilter.asStateFlow()
+
+    private val _categoryFilter = MutableStateFlow("SEMUA")
+    val categoryFilter: StateFlow<String> = _categoryFilter.asStateFlow()
 
     private val _isBalanceHidden = MutableStateFlow(false)
     val isBalanceHidden: StateFlow<Boolean> = _isBalanceHidden.asStateFlow()
@@ -89,21 +96,38 @@ class FinanceViewModel(
             val list = state.data
             var income = 0.0
             var expense = 0.0
+            var thisMonthInc = 0.0
+            var thisMonthExp = 0.0
+            var todayExp = 0.0
+            val currentMonth = FormatUtils.currentMonthYear()
+
             val expenseByCategory = mutableMapOf<String, Double>()
+            val thisMonthExpenseByCategory = mutableMapOf<String, Double>()
 
             for (tx in list) {
+                val isCurrentMonth = FormatUtils.getMonthYearKey(tx.dateMillis) == currentMonth
+                val isToday = FormatUtils.isToday(tx.dateMillis)
+
                 if (tx.type == TransactionType.INCOME.name) {
                     income += tx.amount
+                    if (isCurrentMonth) thisMonthInc += tx.amount
                 } else {
                     expense += tx.amount
+                    if (isCurrentMonth) {
+                        thisMonthExp += tx.amount
+                        thisMonthExpenseByCategory[tx.category] = (thisMonthExpenseByCategory[tx.category] ?: 0.0) + tx.amount
+                    }
+                    if (isToday) todayExp += tx.amount
                     expenseByCategory[tx.category] = (expenseByCategory[tx.category] ?: 0.0) + tx.amount
                 }
             }
 
             val percentages = mutableMapOf<String, Float>()
-            if (expense > 0) {
-                for ((cat, amount) in expenseByCategory) {
-                    percentages[cat] = ((amount / expense) * 100).toFloat()
+            val baseForPercentage = if (thisMonthExp > 0) thisMonthExp else expense
+            val catMapForPercentage = if (thisMonthExp > 0) thisMonthExpenseByCategory else expenseByCategory
+            if (baseForPercentage > 0) {
+                for ((cat, amount) in catMapForPercentage) {
+                    percentages[cat] = ((amount / baseForPercentage) * 100).toFloat()
                 }
             }
 
@@ -111,7 +135,11 @@ class FinanceViewModel(
                 totalIncome = income,
                 totalExpense = expense,
                 totalBalance = income - expense,
+                thisMonthIncome = thisMonthInc,
+                thisMonthExpense = thisMonthExp,
+                todayExpense = todayExp,
                 categoryExpenses = expenseByCategory,
+                thisMonthCategoryExpenses = thisMonthExpenseByCategory,
                 categoryPercentages = percentages
             )
         } else {
@@ -128,8 +156,9 @@ class FinanceViewModel(
         transactionsState,
         _searchQuery,
         _typeFilter,
-        _walletFilter
-    ) { state, query, type, wallet ->
+        _walletFilter,
+        _categoryFilter
+    ) { state, query, type, wallet, cat ->
         if (state is UiState.Success) {
             state.data.filter { tx ->
                 val matchesQuery = query.isBlank() ||
@@ -138,8 +167,52 @@ class FinanceViewModel(
 
                 val matchesType = type == "SEMUA" || tx.type == type
                 val matchesWallet = wallet == "SEMUA" || tx.wallet == wallet
+                val matchesCategory = cat == "SEMUA" || tx.category.equals(cat, ignoreCase = true)
 
-                matchesQuery && matchesType && matchesWallet
+                matchesQuery && matchesType && matchesWallet && matchesCategory
+            }
+        } else {
+            emptyList()
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = emptyList()
+    )
+
+    // Dashboard transactions filtered by selected category as UiState
+    val dashboardTransactionsState: StateFlow<UiState<List<Transaction>>> = combine(
+        transactionsState,
+        _categoryFilter
+    ) { state, catFilter ->
+        when (state) {
+            is UiState.Loading -> UiState.Loading
+            is UiState.Error -> state
+            is UiState.Success -> {
+                val filtered = if (catFilter == "SEMUA") {
+                    state.data
+                } else {
+                    state.data.filter { it.category.equals(catFilter, ignoreCase = true) }
+                }
+                UiState.Success(filtered)
+            }
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000L),
+        initialValue = UiState.Loading
+    )
+
+    // Dashboard transactions filtered by selected category (convenience list)
+    val dashboardTransactions: StateFlow<List<Transaction>> = combine(
+        transactionsState,
+        _categoryFilter
+    ) { state, catFilter ->
+        if (state is UiState.Success) {
+            if (catFilter == "SEMUA") {
+                state.data
+            } else {
+                state.data.filter { it.category.equals(catFilter, ignoreCase = true) }
             }
         } else {
             emptyList()
@@ -164,6 +237,10 @@ class FinanceViewModel(
 
     fun setWalletFilter(wallet: String) {
         _walletFilter.value = wallet
+    }
+
+    fun setCategoryFilter(category: String) {
+        _categoryFilter.value = category
     }
 
     fun toggleBalanceVisibility() {

@@ -44,4 +44,27 @@ object FormatUtils {
             monthYear
         }
     }
+
+    fun getMonthYearKey(millis: Long): String {
+        val sdf = SimpleDateFormat("yyyy-MM", Locale.US)
+        return sdf.format(Date(millis))
+    }
+
+    fun isToday(millis: Long): Boolean {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return sdf.format(Date(millis)) == sdf.format(Date())
+    }
+
+    fun isYesterday(millis: Long): Boolean {
+        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        return sdf.format(Date(millis)) == sdf.format(Date(System.currentTimeMillis() - 86_400_000L))
+    }
+
+    fun formatDateGroup(millis: Long): String {
+        return when {
+            isToday(millis) -> "Hari Ini"
+            isYesterday(millis) -> "Kemarin"
+            else -> formatDate(millis)
+        }
+    }
 }

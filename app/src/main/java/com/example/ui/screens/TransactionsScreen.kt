@@ -62,6 +62,7 @@ fun TransactionsScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val typeFilter by viewModel.typeFilter.collectAsStateWithLifecycle()
     val walletFilter by viewModel.walletFilter.collectAsStateWithLifecycle()
+    val categoryFilter by viewModel.categoryFilter.collectAsStateWithLifecycle()
 
     Scaffold(
         floatingActionButton = {
@@ -160,7 +161,52 @@ fun TransactionsScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Category Filter Chips Row
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("transactions_category_filters")
+            ) {
+                item {
+                    val isAll = categoryFilter == "SEMUA"
+                    FilterChip(
+                        selected = isAll,
+                        onClick = { viewModel.setCategoryFilter("SEMUA") },
+                        label = { Text("Semua Kategori", fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = EmeraldPrimary,
+                            selectedLabelColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("tx_filter_chip_all")
+                    )
+                }
+
+                val allCategories = CategoryConstants.expenseCategories.map { it.name } +
+                        CategoryConstants.incomeCategories.map { it.name }.distinct()
+                items(allCategories) { catName ->
+                    val isSelected = categoryFilter.equals(catName, ignoreCase = true)
+                    val meta = CategoryConstants.getCategoryMeta(catName, true)
+                    FilterChip(
+                        selected = isSelected,
+                        onClick = {
+                            viewModel.setCategoryFilter(if (isSelected) "SEMUA" else catName)
+                        },
+                        label = { Text(catName, fontSize = 12.sp) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = meta.color,
+                            selectedLabelColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.testTag("tx_filter_chip_${catName.lowercase().replace(" ", "_")}")
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Transaction Count
             Text(
